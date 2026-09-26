@@ -14,6 +14,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Test output
+coverage.out
+
 # Build output and dependencies
 dist/
 build/
