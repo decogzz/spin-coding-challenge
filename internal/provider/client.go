@@ -174,7 +174,7 @@ func (c *Client) attempt(ctx context.Context, idempotencyKey string, body []byte
 	if err != nil {
 		return transaction.ExecutionResult{}, &transientError{fmt.Errorf("call provider: %w", err)}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes))
 	if err != nil {

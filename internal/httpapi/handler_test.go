@@ -41,7 +41,12 @@ func newServer(t *testing.T, provider transaction.Provider) *httptest.Server {
 	return srv
 }
 
-func do(t *testing.T, method, url, body string) (*http.Response, []byte) {
+type response struct {
+	StatusCode int
+	Header     http.Header
+}
+
+func do(t *testing.T, method, url, body string) (response, []byte) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(context.Background(), method, url, strings.NewReader(body))
 	if err != nil {
@@ -51,12 +56,12 @@ func do(t *testing.T, method, url, body string) (*http.Response, []byte) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return resp, raw
+	return response{StatusCode: resp.StatusCode, Header: resp.Header}, raw
 }
 
 func decode[T any](t *testing.T, raw []byte) T {
@@ -337,16 +342,16 @@ func TestRequestIDIsPropagated(t *testing.T) {
 
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL+"/healthz", nil)
 	req.Header.Set("X-Request-ID", "req-123")
-	resp, err := http.DefaultClient.Do(req)
+	echoed, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
-	if got := resp.Header.Get("X-Request-ID"); got != "req-123" {
+	_ = echoed.Body.Close()
+	if got := echoed.Header.Get("X-Request-ID"); got != "req-123" {
 		t.Errorf("X-Request-ID = %q, want req-123", got)
 	}
 
-	resp, _ = do(t, http.MethodGet, srv.URL+"/healthz", "")
+	resp, _ := do(t, http.MethodGet, srv.URL+"/healthz", "")
 	if _, err := uuid.Parse(resp.Header.Get("X-Request-ID")); err != nil {
 		t.Errorf("generated X-Request-ID %q is not a UUID", resp.Header.Get("X-Request-ID"))
 	}

@@ -1,8 +1,53 @@
 stages:
-  - check
+  - lint
+  - test
 
-check:
-  stage: check
-  image: alpine:latest
+variables:
+  GOPATH: $CI_PROJECT_DIR/.go
+  GOFLAGS: -mod=readonly
+
+default:
+  image: golang:1.27
+  cache:
+    key:
+      files:
+        - go.sum
+    paths:
+      - .go/pkg/mod/
+
+format-and-vet:
+  stage: lint
   script:
-    - echo "Placeholder pipeline; replace with lint and test jobs once the stack is chosen."
+    - test -z "$(gofmt -l $(git ls-files '*.go'))" || { gofmt -l $(git ls-files '*.go'); exit 1; }
+    - go vet ./...
+    - go vet -tags integration ./...
+
+golangci-lint:
+  stage: lint
+  image: golangci/golangci-lint:v2.14.0
+  script:
+    - golangci-lint run ./...
+
+unit-tests:
+  stage: test
+  script:
+    - go test -race -coverprofile=coverage.out -covermode=atomic ./...
+    - go tool cover -func=coverage.out | tail -n 1
+  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+  artifacts:
+    paths:
+      - coverage.out
+    expire_in: 1 week
+
+integration-tests:
+  stage: test
+  services:
+    - name: postgres:16-alpine
+      alias: postgres
+  variables:
+    POSTGRES_USER: spin
+    POSTGRES_PASSWORD: spin
+    POSTGRES_DB: transactions
+    TEST_DATABASE_URL: postgres://spin:spin@postgres:5432/transactions?sslmode=disable
+  script:
+    - go test -race -tags integration -count=1 ./internal/postgres/...

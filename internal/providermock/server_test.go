@@ -124,7 +124,7 @@ func TestFlakyAccountFailsFirstAttemptPerKey(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return resp.StatusCode
 	}
 
@@ -147,7 +147,7 @@ func TestInvalidRequest(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		if resp.StatusCode != http.StatusBadRequest {
 			t.Errorf("body %s: status %d, want 400", body, resp.StatusCode)
 		}
