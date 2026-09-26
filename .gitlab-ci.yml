@@ -1,0 +1,8 @@
+stages:
+  - check
+
+check:
+  stage: check
+  image: alpine:latest
+  script:
+    - echo "Placeholder pipeline; replace with lint and test jobs once the stack is chosen."
