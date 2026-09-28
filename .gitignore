@@ -14,13 +14,18 @@ Thumbs.db
 # Logs
 *.log
 
-# Test output
-coverage.out
-
-# Build output and dependencies
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+junit.xml
 dist/
 build/
-bin/
-node_modules/
-__pycache__/
-.venv/
+
+# Challenge statement: kept locally, not published with the repo
+*.pdf

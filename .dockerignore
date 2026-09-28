@@ -1,7 +1,0 @@
-.git
-.gitlab-ci.yml
-.vscode
-.idea
-coverage.out
-docker-compose.yml
-Dockerfile
