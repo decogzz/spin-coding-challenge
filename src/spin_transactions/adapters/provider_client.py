@@ -162,7 +162,8 @@ class HttpTransactionProvider:
     def backoff(self, retry: int) -> float:
         """Exponential delay with jitter, so concurrent retries don't hit the provider in lockstep."""
         delay = min(self._config.base_backoff * 2.0 ** (retry - 1), self._config.max_backoff)
-        return delay / 2 + random.uniform(0, delay / 2)  # noqa: S311 - jitter needs no cryptographic source
+        # Jitter needs no cryptographic source.
+        return delay / 2 + random.uniform(0, delay / 2)  # noqa: S311  # nosemgrep: bandit.B311
 
 
 def _decode_approved(content: bytes) -> ExecutionResult:

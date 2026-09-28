@@ -8,10 +8,13 @@ Takes about 40 seconds because it waits for the breaker's open timeout.
 
 import sys
 import time
+import uuid
 
 import httpx
 
 BREAKER_OPEN_TIMEOUT = 30
+# Fresh per run, so the expected balances hold against a mock that is already running.
+ACCOUNT = f"acc-smoke-{uuid.uuid4().hex[:8]}"
 
 api = httpx.Client(base_url=sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8080", timeout=30)
 
@@ -30,32 +33,44 @@ def post(account: str, type: str = "DEBIT", amount: str = "1500.00", currency: s
     return response
 
 
-def main() -> None:
-    executed = post("acc-smoke")
-    assert executed.status_code == 201, executed.text
-    assert b'"balanceAfter":8500.00' in executed.content, executed.text
-    assert post("acc-smoke", "CREDIT", "123456789.01").status_code == 201
-    assert post("acc-smoke", amount="1.00").status_code == 400
-    assert post("acc-smoke", amount="10000.01").status_code == 400
-    assert post("acc-smoke", currency="USD").status_code == 400
-    assert post("acc-insufficient").status_code == 422
-    assert post("acc-blocked").status_code == 422
-    assert post("acc-flaky").status_code == 201
-    assert post("acc-slow").status_code == 502
+def check(condition: bool, message: str) -> None:
+    # Not ``assert``: it must still fail under ``python -O``.
+    if not condition:
+        sys.exit(f"smoke test failed: {message}")
 
-    page = api.get("/transactions", params={"accountId": "acc-smoke", "limit": 1}).json()
-    assert page["pagination"]["hasMore"] is True
+
+def expect_status(response: httpx.Response, status: int) -> None:
+    check(response.status_code == status, f"expected {status}, got {response.status_code}: {response.text}")
+
+
+def main() -> None:
+    executed = post(ACCOUNT)
+    expect_status(executed, 201)
+    check(b'"balanceAfter":8500.00' in executed.content, f"balance not exact: {executed.text}")
+    expect_status(post(ACCOUNT, "CREDIT", "123456789.01"), 201)
+    expect_status(post(ACCOUNT, amount="1.00"), 400)
+    expect_status(post(ACCOUNT, amount="10000.01"), 400)
+    expect_status(post(ACCOUNT, currency="USD"), 400)
+    expect_status(post("acc-insufficient"), 422)
+    expect_status(post("acc-blocked"), 422)
+    expect_status(post("acc-flaky"), 201)
+    expect_status(post("acc-slow"), 502)
+
+    page = api.get("/transactions", params={"accountId": ACCOUNT, "limit": 1}).json()
+    check(page["pagination"]["hasMore"] is True, "listing should report another page")
     rejected = api.get("/transactions", params={"status": "REJECTED"}).json()["data"]
-    assert {tx["failureCode"] for tx in rejected} >= {"INSUFFICIENT_FUNDS", "ACCOUNT_BLOCKED"}
-    assert api.get(executed.headers["Location"]).json()["id"] == executed.json()["id"]
+    codes = {tx["failureCode"] for tx in rejected}
+    check(codes >= {"INSUFFICIENT_FUNDS", "ACCOUNT_BLOCKED"}, f"unexpected rejections: {codes}")
+    fetched = api.get(executed.headers["Location"]).json()
+    check(fetched["id"] == executed.json()["id"], "Location does not point at the transaction")
 
     print("-- opening the circuit breaker")
     for _ in range(5):
         post("acc-error")
-    assert post("acc-smoke").status_code == 502, "circuit should be open"
+    expect_status(post(ACCOUNT), 502)
     print(f"-- waiting {BREAKER_OPEN_TIMEOUT + 1}s for the half-open probe")
     time.sleep(BREAKER_OPEN_TIMEOUT + 1)
-    assert post("acc-smoke").status_code == 201, "circuit should have closed"
+    expect_status(post(ACCOUNT), 201)
     print("smoke test passed")
 
 
