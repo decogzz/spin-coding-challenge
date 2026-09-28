@@ -32,8 +32,18 @@ The tools used to build it:
 
 - **Cursor** as the editor. It is stronger than plain Visual Studio Code for this
   kind of work: its agent works directly in the codebase and terminal, and it
-  integrates skills, MCP servers (GitLab, Terraform, documentation lookups) and
-  subagents.
+  integrates skills, MCP servers and subagents. This project used:
+  - **Context7 MCP** for up-to-date library documentation (FastAPI, SQLAlchemy,
+    pydantic, httpx), so the code follows the current APIs rather than the
+    model's memory of older versions.
+  - **GitLab MCP** to read pipeline results, job logs and security reports from
+    the editor. That is how the SAST findings of the first pipeline were found
+    and cleared.
+  - **Supermemory MCP** as persistent memory across sessions, keeping decisions,
+    conventions and past fixes available to later sessions.
+  - **The workflow-orchestration skill**, which sets how the agent works: plan
+    non-trivial tasks first, work in small verified steps, and do not mark a step
+    done until its tests and checks pass.
 - **GitLab** for the repository and CI, because security scanning is built in:
   SAST and Secret Detection run in the pipeline with no extra services, and lint
   findings show up in merge requests as a Code Quality report.
