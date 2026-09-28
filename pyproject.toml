@@ -55,7 +55,7 @@ ignore = [
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["src", "tests"]
+files = ["src", "tests", "migrations"]
 
 [[tool.mypy.overrides]]
 module = ["asyncpg.*"]

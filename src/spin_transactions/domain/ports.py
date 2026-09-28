@@ -9,7 +9,9 @@ from spin_transactions.domain.models import ExecutionResult, Transaction, Transa
 
 
 class TransactionRepository(Protocol):
-    async def create(self, transaction: Transaction) -> None: ...
+    async def create(self, transaction: Transaction) -> None:
+        """Raises TransactionAlreadyExistsError if the id is taken."""
+        ...
 
     async def update(self, transaction: Transaction) -> None:
         """Record the provider outcome. Raises TransactionNotFoundError if it does not exist."""

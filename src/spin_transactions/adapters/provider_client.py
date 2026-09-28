@@ -15,7 +15,7 @@ from pydantic import BaseModel, ValidationError
 from spin_transactions import jsonutil
 from spin_transactions.domain.errors import ProviderRejectedError
 from spin_transactions.domain.models import ExecutionResult
-from spin_transactions.domain.money import has_cents_precision
+from spin_transactions.domain.money import MAXIMUM_STORABLE_AMOUNT, has_cents_precision
 from spin_transactions.domain.ports import ExecutionRequest
 
 from .circuit_breaker import CircuitBreaker
@@ -171,7 +171,7 @@ def _decode_approved(content: bytes) -> ExecutionResult:
         body = _ApprovedResponse.model_validate(jsonutil.loads(content))
     except (jsonutil.JSONDecodeFailedError, ValidationError) as error:
         raise ProviderProtocolError(f"invalid successful response from provider: {error}") from error
-    if not has_cents_precision(body.balance):
+    if not has_cents_precision(body.balance) or abs(body.balance) > MAXIMUM_STORABLE_AMOUNT:
         raise ProviderProtocolError(f"provider returned an invalid balance: {body.balance}")
     return ExecutionResult(
         provider_transaction_id=body.transactionId,

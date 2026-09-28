@@ -183,6 +183,7 @@ async def test_gives_up_after_max_attempts() -> None:
         b'{"transactionId":"prv-1","status":"PENDING","balance":1.00}',
         b'{"status":"APPROVED","balance":1.00}',
         b'{"transactionId":"prv-1","status":"APPROVED","balance":1.001}',
+        b'{"transactionId":"prv-1","status":"APPROVED","balance":1000000000000000.00}',
     ],
 )
 async def test_malformed_success_is_a_protocol_error_and_not_retried(body: bytes) -> None:

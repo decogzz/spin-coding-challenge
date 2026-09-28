@@ -22,6 +22,10 @@ class TransactionNotFoundError(Exception):
     pass
 
 
+class TransactionAlreadyExistsError(Exception):
+    pass
+
+
 class ProviderRejectedError(Exception):
     """The provider refused the transaction for a business reason, e.g. insufficient funds."""
 

@@ -3,12 +3,8 @@
 from dataclasses import replace
 from uuid import UUID
 
-from spin_transactions.domain.errors import TransactionNotFoundError
+from spin_transactions.domain.errors import TransactionAlreadyExistsError, TransactionNotFoundError
 from spin_transactions.domain.models import Transaction, TransactionFilter
-
-
-class TransactionAlreadyExistsError(Exception):
-    pass
 
 
 class InMemoryTransactionRepository:
