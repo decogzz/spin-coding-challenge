@@ -1,45 +1,61 @@
 stages:
   - lint
   - test
+  - security
+
+# GitLab's built-in scanners: Semgrep-based SAST for Python and Secret Detection.
+# Both are available on the Free tier and report into the pipeline's security tab.
+include:
+  - template: Jobs/SAST.gitlab-ci.yml
+  - template: Jobs/Secret-Detection.gitlab-ci.yml
 
 variables:
-  GOPATH: $CI_PROJECT_DIR/.go
-  GOFLAGS: -mod=readonly
+  UV_VERSION: "0.12.10"
+  UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
+  UV_LINK_MODE: copy
+  UV_FROZEN: "1"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
-default:
-  image: golang:1.27
+.uv:
+  image: python:3.14-slim
+  before_script:
+    - pip install --quiet "uv==$UV_VERSION"
+    - uv sync
   cache:
     key:
       files:
-        - go.sum
+        - uv.lock
     paths:
-      - .go/pkg/mod/
+      - .uv-cache/
 
-format-and-vet:
+lint:
+  extends: .uv
   stage: lint
   script:
-    - test -z "$(gofmt -l $(git ls-files '*.go'))" || { gofmt -l $(git ls-files '*.go'); exit 1; }
-    - go vet ./...
-    - go vet -tags integration ./...
-
-golangci-lint:
-  stage: lint
-  image: golangci/golangci-lint:v2.14.0
-  script:
-    - golangci-lint run ./...
+    - uv run ruff check --output-format=gitlab --output-file=gl-code-quality-report.json . || { uv run ruff check .; exit 1; }
+    - uv run ruff format --check .
+    - uv run mypy
+  artifacts:
+    when: always
+    reports:
+      codequality: gl-code-quality-report.json
 
 unit-tests:
+  extends: .uv
   stage: test
   script:
-    - go test -race -coverprofile=coverage.out -covermode=atomic ./...
-    - go tool cover -func=coverage.out | tail -n 1
-  coverage: '/total:\s+\(statements\)\s+(\d+\.\d+)%/'
+    - uv run pytest --cov --cov-report=term --cov-report=xml:coverage.xml --junitxml=junit.xml
+  coverage: '/^TOTAL.*\s(\d+(?:\.\d+)?)%$/'
   artifacts:
-    paths:
-      - coverage.out
-    expire_in: 1 week
+    when: always
+    reports:
+      junit: junit.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
 
 integration-tests:
+  extends: .uv
   stage: test
   services:
     - name: postgres:16-alpine
@@ -47,7 +63,38 @@ integration-tests:
   variables:
     POSTGRES_USER: spin
     POSTGRES_PASSWORD: spin
-    POSTGRES_DB: transactions
-    TEST_DATABASE_URL: postgres://spin:spin@postgres:5432/transactions?sslmode=disable
+    POSTGRES_DB: spin_test
+    TEST_DATABASE_URL: postgresql+asyncpg://spin:spin@postgres:5432/spin_test
   script:
-    - go test -race -tags integration -count=1 ./internal/postgres/...
+    - uv run pytest -m integration --junitxml=junit-integration.xml
+  artifacts:
+    when: always
+    reports:
+      junit: junit-integration.xml
+
+docker-build:
+  stage: test
+  image: docker:28
+  services:
+    - docker:28-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - docker build --pull -t "spin-transactions:$CI_COMMIT_SHORT_SHA" .
+
+# Known vulnerabilities in the locked runtime dependencies (GitLab's own
+# dependency scanning needs the Ultimate tier).
+dependency-audit:
+  extends: .uv
+  stage: security
+  before_script:
+    - pip install --quiet "uv==$UV_VERSION"
+  script:
+    - uv export --no-dev --no-emit-project --format requirements-txt -o requirements.txt
+    - uvx pip-audit --disable-pip --require-hashes -r requirements.txt
+
+secret_detection:
+  stage: security
+
+sast:
+  stage: security
