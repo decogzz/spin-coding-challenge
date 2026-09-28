@@ -49,6 +49,14 @@ def test_accepts(command: ExecuteCommand) -> None:
         pytest.param(
             replace(VALID, amount=Decimal("1000000000000000.00")), ["AMOUNT_TOO_LARGE"], id="beyond storage"
         ),
+        pytest.param(
+            replace(VALID, amount=Decimal("1E+999999")), ["AMOUNT_TOO_LARGE"], id="beyond decimal precision"
+        ),
+        pytest.param(
+            replace(VALID, amount=Decimal("5.0000000000000000000000000000001")),
+            ["INVALID_PRECISION"],
+            id="tiny fraction beyond decimal precision",
+        ),
         pytest.param(replace(VALID, currency="USD"), ["UNSUPPORTED_CURRENCY"], id="other currency"),
         pytest.param(replace(VALID, currency="mxn"), ["UNSUPPORTED_CURRENCY"], id="lowercase currency"),
         pytest.param(replace(VALID, account_id=""), ["REQUIRED"], id="missing account"),

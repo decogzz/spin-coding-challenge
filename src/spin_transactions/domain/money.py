@@ -12,8 +12,16 @@ MAXIMUM_STORABLE_AMOUNT = Decimal("999999999999999.99")
 
 
 def has_cents_precision(amount: Decimal) -> bool:
-    """True when the amount needs no more than two decimal places (``1.500`` qualifies)."""
-    return amount.is_finite() and amount == amount.quantize(CENT)
+    """True when the amount needs no more than two decimal places (``1.500`` qualifies).
+
+    Reads the digits instead of calling ``quantize``, which raises for values
+    beyond the decimal context's precision (e.g. ``1E+30``).
+    """
+    _, digits, exponent = amount.as_tuple()
+    if not isinstance(exponent, int):  # NaN or infinity
+        return False
+    extra_places = -exponent - 2
+    return extra_places <= 0 or not any(digits[-extra_places:])
 
 
 def to_money(amount: Decimal) -> Decimal:
