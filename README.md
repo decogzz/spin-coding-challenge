@@ -365,7 +365,50 @@ migrations/              Alembic migrations
 tests/unit/              unit tests (no network or database)
 tests/integration/       PostgreSQL tests
 scripts/smoke.py         end-to-end check against the running stack
+loadtest/                k6 load test; run with docker-compose.loadtest.yml
 ```
+
+## Performance
+
+A [k6](https://k6.io/) load test (`loadtest/transactions.js`) drives
+`POST /transactions` through the full path: validation, the `PENDING` insert, the
+provider call and the final update. It runs inside the Compose network, next to
+the API replicas:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build --wait
+docker compose -f docker-compose.yml -f docker-compose.loadtest.yml run --rm -e VUS=30 -e DURATION=20s k6
+docker compose up -d --wait --remove-orphans   # back to the normal single-instance stack
+```
+
+`API_REPLICAS` (default 3) sets how many API containers run. Results on a laptop
+(8 cores, Docker Desktop on Windows), 30 concurrent clients, 20 seconds:
+
+| API replicas | Throughput | Latency (median / p95 / p99) | Failed requests |
+| ------------ | ---------- | ---------------------------- | --------------- |
+| 1            | 299 req/s  | 93 / 142 / 245 ms            | 0 of 6,029      |
+| 3            | 903 req/s  | 33 / 43 / 60 ms              | 0 of 18,080     |
+
+What the numbers show:
+- **One replica uses one CPU core** and tops out near 300 transactions per second,
+  about 3.4 ms of CPU each. Scaling out is close to linear, because the service
+  keeps no state between requests.
+- **Headroom for the target volume.** 900 transactions per second is about 78
+  million a day. Ten million a day averages 116 per second, so even a tenfold peak
+  needs only a handful of replicas.
+- **PostgreSQL is the next limit.** It reached about 80% of a core at 900
+  transactions per second, since each one costs two commits and their index
+  updates. Beyond a few thousand per second it needs a larger instance, PgBouncer
+  in front of many replicas, and partitioning (see below).
+- **A slow provider costs little CPU.** The mock answers instantly. Against a real
+  provider the waiting is spent asleep in the event loop, and a database connection
+  is held only for the insert and the update, never across the provider call. What
+  grows is the number of requests in flight, bounded per replica by the provider
+  client's 200-connection pool.
+
+These are indicative numbers from a shared machine with the load generator on the
+same host, not a production benchmark. Listing (`GET /transactions`) against a
+large table was not measured.
 
 ## Trade-offs and next steps
 

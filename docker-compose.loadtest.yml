@@ -1,0 +1,26 @@
+# Load testing overlay. Frees the API's host port so it can run as several
+# replicas, and adds k6 inside the network, where the `api` name resolves to
+# every replica.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml up -d --build --wait
+#   docker compose -f docker-compose.yml -f docker-compose.loadtest.yml run --rm k6
+#
+# API_REPLICAS (default 3), VUS (default 50) and DURATION (default 30s) tune the run.
+services:
+  api:
+    ports: !reset []
+    # Set here rather than with --scale, which `compose run` would reset to 1.
+    scale: ${API_REPLICAS:-3}
+
+  k6:
+    image: grafana/k6:2.3.0
+    profiles: ["loadtest"]
+    command: ["run", "--quiet", "/loadtest/transactions.js"]
+    environment:
+      VUS: "${VUS:-50}"
+      DURATION: "${DURATION:-30s}"
+    volumes:
+      - ./loadtest:/loadtest:ro
+    depends_on:
+      api:
+        condition: service_healthy
