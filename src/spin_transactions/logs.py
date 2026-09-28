@@ -11,7 +11,13 @@ import simplejson
 request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 # Attributes every LogRecord has; anything else was passed through ``extra``.
-_STANDARD_ATTRIBUTES = frozenset(vars(logging.makeLogRecord({}))) | {"message", "asctime", "taskName"}
+# Uvicorn adds ``color_message``, a copy of the message with terminal colours.
+_STANDARD_ATTRIBUTES = frozenset(vars(logging.makeLogRecord({}))) | {
+    "message",
+    "asctime",
+    "taskName",
+    "color_message",
+}
 
 
 class JSONFormatter(logging.Formatter):

@@ -1,0 +1,63 @@
+x-image: &image
+  build: .
+  image: spin-transactions:local
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: spin
+      POSTGRES_PASSWORD: spin
+      POSTGRES_DB: transactions
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spin -d transactions"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # Applies the Alembic migrations once, before the API starts.
+  migrate:
+    <<: *image
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://spin:spin@postgres:5432/transactions"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  providermock:
+    <<: *image
+    command: ["spin-provider-mock"]
+    environment:
+      PROVIDER_MOCK_PORT: "8081"
+      PROVIDER_MOCK_INITIAL_BALANCE: "10000.00"
+      PROVIDER_MOCK_SLOW_DELAY: "5"
+    ports:
+      - "8081:8081"
+
+  api:
+    <<: *image
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgresql+asyncpg://spin:spin@postgres:5432/transactions"
+      DB_POOL_SIZE: "10"
+      PROVIDER_BASE_URL: "http://providermock:8081"
+      PROVIDER_ATTEMPT_TIMEOUT: "2"
+      PROVIDER_MAX_ATTEMPTS: "3"
+      PROVIDER_BREAKER_FAILURES: "5"
+      PROVIDER_BREAKER_OPEN_TIMEOUT: "30"
+      LOG_LEVEL: "info"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      providermock:
+        condition: service_started

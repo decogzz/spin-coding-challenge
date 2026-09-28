@@ -50,12 +50,13 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "PLR0913", "S311"]
+"scripts/**" = ["S101", "T201"]
 "migrations/**" = ["N999"]
 
 [tool.mypy]
 strict = true
 plugins = ["pydantic.mypy"]
-files = ["src", "tests", "migrations"]
+files = ["src", "tests", "migrations", "scripts"]
 
 [[tool.mypy.overrides]]
 module = ["asyncpg.*"]

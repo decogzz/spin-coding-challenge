@@ -1,0 +1,15 @@
+.git
+.gitlab-ci.yml
+.venv
+**/__pycache__
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+coverage.xml
+junit.xml
+tests
+*.pdf
+*.md
+docker-compose.yml
+Dockerfile
